@@ -1,0 +1,5 @@
+{
+  "name": "SmartInvoice AI",
+  "description": "A fully functional invoice generator with AI-powered item parsing and integrated payment simulation.",
+  "requestFramePermissions": []
+}
