@@ -390,7 +390,7 @@ function App() {
         <div className="p-6 border-b border-slate-100 sticky top-0 bg-white z-20">
             <div className="flex items-center gap-2 mb-4">
                 <LayoutTemplate className="w-6 h-6 text-primary" />
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">GST Invoice</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Incanto Invoice</h1>
             </div>
 
             {/* Tab Switcher (Editor vs Dashboard) */}
