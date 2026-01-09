@@ -2,16 +2,23 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SmartFillResponse } from "../types";
 
 const parseInvoiceItems = async (description: string): Promise<SmartFillResponse | null> => {
-  if (!process.env.API_KEY) {
-    console.warn("API Key is missing for Gemini Service");
+  // Access the key injected by Vite via define in vite.config.ts
+  const apiKey = process.env.API_KEY;
+
+  if (!apiKey || apiKey.replace(/['"]+/g, '').trim() === '') {
+    console.error("Gemini Parse Error: API_KEY is missing.");
+    alert("API Key is missing. Please add 'API_KEY' to your Vercel Environment Variables.");
     return null;
   }
 
+  // Sanitize key just in case JSON.stringify added extra quotes
+  const cleanKey = apiKey.replace(/['"]+/g, '');
+
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: cleanKey });
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash", 
       contents: `Extract invoice details or actions from this text. 
       
       Capabilities:

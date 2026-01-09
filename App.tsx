@@ -160,73 +160,84 @@ function App() {
   const handleSmartFill = async () => {
     if (!smartFillText.trim()) return;
     setIsThinking(true);
-    const result = await geminiService.parseInvoiceItems(smartFillText);
     
-    if (result) {
-      setData(prev => {
-        let newData = { ...prev };
-
-        // 1. Handle Actions (Clear/Reset)
-        if (result.actions?.clearClient) {
-          newData.clientName = '';
-          newData.clientAddress = '';
-          newData.clientEmail = '';
-          newData.clientPhone = '';
-          newData.clientGstin = 'NA';
-          newData.clientStateCode = '';
-        }
-
-        if (result.actions?.clearItems) {
-          newData.items = [];
-        }
-
-        if (result.actions?.markAsUnpaid) {
-          newData.isPaid = false;
-        }
+    try {
+        const result = await geminiService.parseInvoiceItems(smartFillText);
         
-        if (result.actions?.markAsPaid) {
-          newData.isPaid = true;
+        if (!result) {
+            alert("Smart Fill failed. Please check your internet connection or ensure the API_KEY is correctly set in Vercel settings.");
+            setIsThinking(false);
+            return;
         }
 
-        // 2. Apply extracted data (overwriting if necessary)
-        if (result.clientDetails) {
-          newData.clientName = result.clientDetails.name || newData.clientName;
-          newData.clientAddress = result.clientDetails.address || newData.clientAddress;
-          newData.clientGstin = result.clientDetails.gstin || newData.clientGstin;
-          newData.clientPhone = result.clientDetails.phone || newData.clientPhone;
-        }
+        setData(prev => {
+          let newData = { ...prev };
 
-        if (result.items && result.items.length > 0) {
-          const currentTaxRate = newData.taxRate || 18;
-          const taxMultiplier = 1 + (currentTaxRate / 100);
+          // 1. Handle Actions (Clear/Reset)
+          if (result.actions?.clearClient) {
+            newData.clientName = '';
+            newData.clientAddress = '';
+            newData.clientEmail = '';
+            newData.clientPhone = '';
+            newData.clientGstin = 'NA';
+            newData.clientStateCode = '';
+          }
 
-          const newItems = result.items.map(item => {
-            // Treat AI input price as Total Amount (Inclusive of Tax)
-            // Calculate taxable rate backwards
-            // Formula: Rate = Total / (1 + Tax%)
-            const totalAmount = item.price; 
-            const derivedRate = totalAmount / taxMultiplier;
+          if (result.actions?.clearItems) {
+            newData.items = [];
+          }
 
-            return {
-              id: Math.random().toString(36).substr(2, 9),
-              description: item.description,
-              hsnCode: '',
-              quantity: item.quantity,
-              unit: 'No',
-              price: derivedRate // Set the derived taxable value
-            };
-          });
+          if (result.actions?.markAsUnpaid) {
+            newData.isPaid = false;
+          }
           
-          // Append new items to existing ones (unless cleared)
-          newData.items = [...newData.items, ...newItems];
-        }
+          if (result.actions?.markAsPaid) {
+            newData.isPaid = true;
+          }
 
-        return newData;
-      });
-      
-      setSmartFillText('');
+          // 2. Apply extracted data (overwriting if necessary)
+          if (result.clientDetails) {
+            newData.clientName = result.clientDetails.name || newData.clientName;
+            newData.clientAddress = result.clientDetails.address || newData.clientAddress;
+            newData.clientGstin = result.clientDetails.gstin || newData.clientGstin;
+            newData.clientPhone = result.clientDetails.phone || newData.clientPhone;
+          }
+
+          if (result.items && result.items.length > 0) {
+            const currentTaxRate = newData.taxRate || 18;
+            const taxMultiplier = 1 + (currentTaxRate / 100);
+
+            const newItems = result.items.map(item => {
+              // Treat AI input price as Total Amount (Inclusive of Tax)
+              // Calculate taxable rate backwards
+              // Formula: Rate = Total / (1 + Tax%)
+              const totalAmount = item.price; 
+              const derivedRate = totalAmount / taxMultiplier;
+
+              return {
+                id: Math.random().toString(36).substr(2, 9),
+                description: item.description,
+                hsnCode: '',
+                quantity: item.quantity,
+                unit: 'No',
+                price: derivedRate // Set the derived taxable value
+              };
+            });
+            
+            // Append new items to existing ones (unless cleared)
+            newData.items = [...newData.items, ...newItems];
+          }
+
+          return newData;
+        });
+        
+        setSmartFillText('');
+    } catch (error) {
+        console.error("Smart Fill Error", error);
+        alert("An error occurred while processing your request.");
+    } finally {
+        setIsThinking(false);
     }
-    setIsThinking(false);
   };
 
   const getTotal = () => {
@@ -570,36 +581,57 @@ function App() {
         </div>
       </div>
 
-      {/* --- Preview / Action Area --- */}
-      <div className={`flex-1 relative bg-slate-300 flex flex-col h-screen overflow-hidden ${activeTab === 'edit' ? 'hidden md:flex' : 'flex fixed inset-0 z-40 md:static'}`}>
+      {/* --- Main Preview Area --- */}
+      <div className={`flex-1 bg-slate-200 h-auto md:h-screen relative overflow-y-auto overflow-x-hidden p-4 md:p-8 transition-all duration-300 print:p-0 print:overflow-visible print:h-auto print:bg-white ${activeTab === 'edit' ? 'hidden md:block' : 'block'}`}>
         
-        {/* Toolbar */}
-        <div className="no-print h-16 bg-white/80 backdrop-blur border-b border-slate-200 flex items-center justify-between px-4 md:px-8 z-20 shadow-sm">
-            <button 
-                onClick={() => setActiveTab('edit')} 
-                className="md:hidden text-slate-600 text-sm font-medium"
-            >
-                ← Back to Edit
-            </button>
-            <div className="hidden md:block text-slate-600 font-semibold">
-                Preview
-            </div>
-            
-            <div className="flex gap-3">
-                 <button 
-                 onClick={handleDownload}
-                 className="px-6 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition-colors flex items-center gap-2 shadow-lg"
-                 >
-                     <Download size={18} /> Generate & Download Invoice
-                 </button>
-            </div>
+        {/* Toolbar (Floating on Desktop, Fixed on Mobile) */}
+        <div className="no-print mb-6 flex flex-wrap gap-3 justify-center md:justify-end sticky top-0 z-10 md:static p-2 md:p-0 bg-slate-200/90 md:bg-transparent backdrop-blur-md md:backdrop-blur-none rounded-xl">
+          <button 
+            onClick={handleDownload}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 font-medium rounded-lg shadow-sm hover:bg-slate-50 hover:text-primary transition-all"
+          >
+            <Download size={18} />
+            <span className="hidden sm:inline">Download PDF</span>
+          </button>
+          
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 font-medium rounded-lg shadow-sm hover:bg-slate-50 hover:text-primary transition-all"
+          >
+            <Printer size={18} />
+            <span className="hidden sm:inline">Print</span>
+          </button>
+
+          {!data.isPaid && (
+             <button 
+                onClick={() => setIsPaymentModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-2 bg-primary text-white font-bold rounded-lg shadow-md hover:bg-blue-700 hover:shadow-lg transition-all animate-pulse"
+             >
+                <CreditCard size={18} />
+                Pay & Finalize
+             </button>
+          )}
+
+          {data.isPaid && (
+             <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 font-bold rounded-lg border border-green-200 cursor-default">
+                Invoice Paid
+             </div>
+          )}
         </div>
 
-        {/* Invoice Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center items-start print:p-0 print:overflow-visible print:block">
-            <div className="scale-[0.8] lg:scale-100 origin-top print:transform-none transition-transform duration-300 shadow-2xl">
-                <InvoicePaper data={data} />
-            </div>
+        {/* Invoice Paper Render */}
+        <div className="flex justify-center min-w-[210mm] md:min-w-0 transform scale-[0.5] sm:scale-[0.7] md:scale-[0.85] lg:scale-100 origin-top transition-transform duration-300 mb-20 print:transform-none print:mb-0">
+           <InvoicePaper data={data} />
+        </div>
+
+        {/* Mobile View Toggle (Floating Bottom) */}
+        <div className="md:hidden fixed bottom-4 left-4 right-4 z-30">
+             <button 
+                onClick={() => setActiveTab('edit')}
+                className="w-full py-3 bg-white text-slate-700 border border-slate-200 rounded-lg font-semibold shadow-lg flex items-center justify-center gap-2"
+            >
+                <PenLine size={18} /> Back to Editor
+            </button>
         </div>
 
       </div>
